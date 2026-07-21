@@ -50,6 +50,12 @@ async function checkPairTimeframe(pairKey, symbol, timeframeKey, offsetMin, clos
   }
 }
 
+// Free Twelve Data plan allows 8 calls/minute. We check one pair at a
+// time with a delay between each, instead of firing all pairs at once,
+// to stay safely under that limit.
+const DELAY_BETWEEN_PAIRS_MS = 10000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function runTick() {
   const now = nowInNewYork();
   const triggers = getActiveTriggers(now);
@@ -61,10 +67,12 @@ async function runTick() {
         `(closes ${trigger.closeDT.toFormat("ccc HH:mm")} NY)`
     );
 
-    const jobs = Object.entries(config.PAIRS).map(([pairKey, symbol]) =>
-      checkPairTimeframe(pairKey, symbol, trigger.timeframeKey, trigger.offsetMin, trigger.closeDT)
-    );
-    await Promise.allSettled(jobs);
+    let first = true;
+    for (const [pairKey, symbol] of Object.entries(config.PAIRS)) {
+      if (!first) await sleep(DELAY_BETWEEN_PAIRS_MS);
+      first = false;
+      await checkPairTimeframe(pairKey, symbol, trigger.timeframeKey, trigger.offsetMin, trigger.closeDT);
+    }
   }
 
   // Keep the dedupe set from growing forever — anything older than 8 days
