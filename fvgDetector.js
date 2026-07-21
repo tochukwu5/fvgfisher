@@ -19,17 +19,18 @@
  *   Price selling back DOWN into the zone is a rebalance. Continuation
  *   bias = the closing candle's body ends back above zoneHigh.
  *
- * Only the most recent, still-unmitigated FVG is tracked per symbol/
- * timeframe. An FVG is "mitigated" (no longer tradable) once a CLOSED
- * candle has fully closed all the way through it in the direction of
- * the gap.
+ * Only the MOST RECENT FVG is tracked per symbol/timeframe, and only
+ * while it's still "fresh": the rebalance must happen on the candle
+ * immediately after formation ("D") or the one after that ("E") — i.e.
+ * the FVG formed by candles A, B, C is only watched while the currently
+ * forming candle is D or E. If neither D nor E trades back into the
+ * zone, the FVG expires and is ignored from then on, even if a later
+ * candle eventually reaches it.
  */
 
 /** Scan closed candles for 3-candle imbalance patterns. */
 function findFvgs(candles) {
   const fvgs = [];
-  // The live (still-forming) candle is excluded from pattern-hunting —
-  // an FVG is only valid once fully formed by 3 CLOSED candles.
   const closed = candles.slice(0, -1);
 
   for (let i = 0; i < closed.length - 2; i++) {
@@ -57,28 +58,46 @@ function findFvgs(candles) {
   return fvgs;
 }
 
-/** True if any CLOSED candle after formation has fully closed through the
- * zone in the direction of the gap (i.e. the gap has been used up). */
+/** True if any CLOSED candle after formation has traded INTO the zone
+ * and then closed its body fully through it in the direction of the gap
+ * (i.e. it tapped the zone and rejected out the far side — the gap has
+ * genuinely been used up). A candle that closes beyond the zone WITHOUT
+ * ever having entered it doesn't count — that's just price continuing
+ * on its own, not a rebalance event. */
 function isMitigated(fvg, candles) {
   const closed = candles.slice(0, -1);
   const start = fvg.formedIndex + 1;
 
   for (let i = start; i < closed.length; i++) {
     const candle = closed[i];
-    if (fvg.direction === "bearish" && candle.close < fvg.zoneLow) return true;
-    if (fvg.direction === "bullish" && candle.close > fvg.zoneHigh) return true;
+    if (fvg.direction === "bearish" && candle.high >= fvg.zoneLow && candle.close < fvg.zoneLow) {
+      return true;
+    }
+    if (fvg.direction === "bullish" && candle.low <= fvg.zoneHigh && candle.close > fvg.zoneHigh) {
+      return true;
+    }
   }
   return false;
 }
 
-/** Most recent FVG that hasn't yet been fully mitigated by a closed
- * candle — the zone we watch for a rebalance + rejection. */
+/**
+ * The most recent FVG, but ONLY if the currently forming (live) candle is
+ * candle D (1 candle after formation) or candle E (2 candles after).
+ * Returns null once the window has passed (candle F or later) or if the
+ * gap has already been mitigated.
+ */
 function getActiveFvg(candles) {
   const fvgs = findFvgs(candles);
-  for (let i = fvgs.length - 1; i >= 0; i--) {
-    if (!isMitigated(fvgs[i], candles)) return fvgs[i];
-  }
-  return null;
+  if (fvgs.length === 0) return null;
+
+  const latest = fvgs[fvgs.length - 1];
+  const liveIndex = candles.length - 1;
+  const candlesSinceFormation = liveIndex - latest.formedIndex; // 1 = D is live, 2 = E is live
+
+  if (candlesSinceFormation < 1 || candlesSinceFormation > 2) return null;
+  if (isMitigated(latest, candles)) return null;
+
+  return latest;
 }
 
 /**

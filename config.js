@@ -66,9 +66,11 @@ module.exports = {
   WEEKLY_CLOSE_HOUR_EST: 17,
   WEEKLY_CLOSE_MINUTE_EST: 0,
 
-  // 4H candles are assumed to close on these New York hours (standard
-  // forex 4H boundary). Verify with `npm run verify` if in doubt.
-  FOUR_H_CLOSE_HOURS_EST: [0, 4, 8, 12, 16, 20],
+  // 4H candles close on these New York hours — confirmed via `npm run
+  // verify` against real Twelve Data timestamps, and matching the
+  // standard forex broker grid (Oanda/FXCM close at 5am, 9am, 1pm, 5pm,
+  // 9pm, 1am New York time). NOT midnight-aligned.
+  FOUR_H_CLOSE_HOURS_EST: [1, 5, 9, 13, 17, 21],
 
   // ---------------------------------------------------------------------
   // Strategy parameters
