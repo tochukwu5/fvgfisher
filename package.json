@@ -1,0 +1,24 @@
+{
+  "name": "fvg-rebalance-alert-bot",
+  "version": "1.0.0",
+  "description": "Multi-pair, multi-timeframe FVG rebalance + body-close alert bot (Twelve Data -> Telegram)",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "verify": "node scripts/verifySymbolsAndCloseTimes.js",
+    "test-alert": "node scripts/testAlert.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.7.4",
+    "dotenv": "^16.4.5",
+    "luxon": "^3.4.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
