@@ -3,6 +3,13 @@
  * whether any timeframe/offset trigger window is active, and — if so —
  * pulls fresh candles for every monitored pair and evaluates the FVG
  * rebalance + body-close strategy, alerting to Telegram when relevant.
+ *
+ * Alert policy: at most ONE alert per pair per candle close, and ONLY
+ * when the live candle's body has actually confirmed beyond the FVG
+ * (high-quality rejection). If it's not confirmed at the earlier check
+ * (e.g. 15 min before close), nothing is sent and the later check
+ * (e.g. 5 min before close) gets a fresh chance. If it's still not
+ * confirmed by then, that candle simply produces no alert for that pair.
  */
 
 const config = require("./config");
@@ -12,8 +19,10 @@ const telegramClient = require("./telegramClient");
 const { formatAlert } = require("./formatAlert");
 const { nowInNewYork, getActiveTriggers } = require("./scheduler");
 
-// In-memory dedupe so we don't alert twice for the same
-// pair + timeframe + offset + candle-close combination.
+// In-memory dedupe so we don't alert twice for the same pair + timeframe +
+// candle-close combination — NOTE: this key intentionally does NOT include
+// offsetMin, so once an alert fires at (say) the 15-min check, the 5-min
+// check for that same close is automatically skipped too.
 const alreadyAlerted = new Set();
 
 function requiredEnvPresent() {
@@ -25,8 +34,8 @@ function requiredEnvPresent() {
 }
 
 async function checkPairTimeframe(pairKey, symbol, timeframeKey, offsetMin, closeDT) {
-  const dedupeKey = `${pairKey}:${timeframeKey}:${offsetMin}:${closeDT.toISO()}`;
-  if (alreadyAlerted.has(dedupeKey)) return;
+  const dedupeKey = `${pairKey}:${timeframeKey}:${closeDT.toISO()}`;
+  if (alreadyAlerted.has(dedupeKey)) return; // already sent for this pair/close — skip entirely
 
   try {
     const interval = config.TIMEFRAMES[timeframeKey].interval;
@@ -37,6 +46,16 @@ async function checkPairTimeframe(pairKey, symbol, timeframeKey, offsetMin, clos
 
     const evalResult = fvgDetector.evaluateLiveCandle(fvg, candles);
     if (!evalResult) return; // price hasn't reached the zone — nothing to report
+
+    // Only high-quality, body-confirmed rejections get alerted. Wick-only
+    // or still-undecided setups are deliberately NOT sent — if this is the
+    // 15-min check, the 5-min check will re-evaluate this same pair fresh.
+    if (!evalResult.bodyConfirms) {
+      console.log(
+        `[check] ${pairKey} ${timeframeKey} (-${offsetMin}m): not confirmed yet, waiting for next check`
+      );
+      return;
+    }
 
     const text = formatAlert({ pairKey, timeframeKey, offsetMin, evalResult, closeDT });
     const sent = await telegramClient.sendMessage(text);
