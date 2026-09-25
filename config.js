@@ -25,18 +25,7 @@ module.exports = {
   PAIRS: {
     GOLD: "XAU/USD",
     NASDAQ: "NDX",
-    EURUSD: "EUR/USD",
-    GBPUSD: "GBP/USD",
-    USDJPY: "USD/JPY",
-    NZDUSD: "NZD/USD",
-    AUDUSD: "AUD/USD",
-    USDCAD: "USD/CAD",
-    GBPJPY: "GBP/JPY",
-    EURJPY: "EUR/JPY",
-    AUDJPY: "AUD/JPY",
-    CADJPY: "CAD/JPY",
-    NZDJPY: "NZD/JPY",
-    CHFJPY: "CHF/JPY",
+   
   },
 
   // ---------------------------------------------------------------------
